@@ -1,59 +1,49 @@
 package prices
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"program/conversion"
+	"program/iomanager"
 )
 
 type TaxIncludedPriceJob struct {
-	TaxRate           float64
-	InputPrices       []float64
-	TaxIncludedPrices map[string]float64
+	IOManager         iomanager.IOManager `json:"-"`
+	TaxRate           float64             `json:"tax_rate"`
+	InputPrices       []float64           `json:"input_prices"`
+	TaxIncludedPrices map[string]string   `json:"tax_included_prices"`
 }
 
-func (job *TaxIncludedPriceJob) LoadData() {
-	file, err := os.Open("prices.txt")
+func (job *TaxIncludedPriceJob) LoadData() error {
+	lines, err := job.IOManager.ReadLines()
 	if err != nil {
-		fmt.Println("Could not open file!")
-		fmt.Println(err)
-		return
-	}
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	err = scanner.Err()
-	if err != nil {
-		fmt.Println("Could not open file!")
-		fmt.Println(err)
-		file.Close()
-		return
+		return err
 	}
 	prices, err := conversion.StringToFloat(lines)
 	if err != nil {
-		fmt.Println(err)
-		file.Close()
-		return
+		return err
 	}
 	job.InputPrices = prices
-	file.Close()
-
+	return nil
 }
 
-func (job TaxIncludedPriceJob) Process() {
+func (job TaxIncludedPriceJob) Process() error {
+	err := job.LoadData()
+	if err != nil {
+		return err
+	}
 	result := make(map[string]string)
 	for _, price := range job.InputPrices {
 		TaxIncludedPrice := price * (1 + job.TaxRate)
 		result[fmt.Sprintf("%.2f", price)] = fmt.Sprintf("%.2f", TaxIncludedPrice)
 	}
-	fmt.Println(result)
+	job.TaxIncludedPrices = result
+
+	return job.IOManager.WriteResult(job)
 }
 
-func NewTaxIncludedPriceJob(taxrate float64) *TaxIncludedPriceJob {
+func NewTaxIncludedPriceJob(iom iomanager.IOManager, taxrate float64) *TaxIncludedPriceJob {
 	return &TaxIncludedPriceJob{
+		IOManager:   iom,
 		InputPrices: []float64{10, 20, 30},
 		TaxRate:     taxrate,
 	}
